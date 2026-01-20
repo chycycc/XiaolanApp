@@ -108,3 +108,53 @@
 2026-01-08 14:50:54,735 - INFO - Sent audio segment with seq: 4 (last: False)
 2026-01-08 14:50:54,948 - INFO - Sent audio segment with seq: 5 (last: False)
 2026-01-08 14:50:55,140 - INFO - Sent audio segment with seq: 6 (last: True)
+2026-01-20 20:22:46,589 - INFO - [AudioRecorder] Stream started
+2026-01-20 20:22:51,738 - INFO - [AudioRecorder] Yielding chunk size=10560, total=10560
+2026-01-20 20:22:51,767 - INFO - [AudioRecorder] Yielding chunk size=960, total=11520
+2026-01-20 20:22:51,798 - INFO - [AudioRecorder] Yielding chunk size=960, total=12480
+2026-01-20 20:22:51,827 - INFO - [AudioRecorder] Yielding chunk size=960, total=13440
+2026-01-20 20:22:51,857 - INFO - [AudioRecorder] Yielding chunk size=960, total=14400
+2026-01-20 20:22:51,887 - INFO - [AudioRecorder] Yielding chunk size=960, total=15360
+2026-01-20 20:22:51,918 - INFO - [AudioRecorder] Yielding chunk size=960, total=16320
+2026-01-20 20:22:51,947 - INFO - [AudioRecorder] Yielding chunk size=960, total=17280
+2026-01-20 20:22:51,977 - INFO - [AudioRecorder] Yielding chunk size=960, total=18240
+2026-01-20 20:22:52,008 - INFO - [AudioRecorder] Yielding chunk size=960, total=19200
+2026-01-20 20:22:52,037 - INFO - [AudioRecorder] Yielding chunk size=960, total=20160
+2026-01-20 20:22:52,067 - INFO - [AudioRecorder] Yielding chunk size=960, total=21120
+2026-01-20 20:22:52,097 - INFO - [AudioRecorder] Yielding chunk size=960, total=22080
+2026-01-20 20:22:52,128 - INFO - [AudioRecorder] Yielding chunk size=960, total=23040
+2026-01-20 20:22:52,157 - INFO - [AudioRecorder] Yielding chunk size=960, total=24000
+2026-01-20 20:22:52,188 - INFO - [AudioRecorder] Yielding chunk size=960, total=24960
+2026-01-20 20:22:52,217 - INFO - [AudioRecorder] Yielding chunk size=960, total=25920
+2026-01-20 20:22:52,248 - INFO - [AudioRecorder] Yielding chunk size=960, total=26880
+2026-01-20 20:22:52,278 - INFO - [AudioRecorder] Yielding chunk size=960, total=27840
+2026-01-20 20:22:52,307 - INFO - [AudioRecorder] Yielding chunk size=960, total=28800
+2026-01-20 20:22:52,336 - INFO - [AudioRecorder] Yielding chunk size=960, total=29760
+2026-01-20 20:22:52,366 - INFO - [AudioRecorder] Yielding chunk size=960, total=30720
+2026-01-20 20:22:52,398 - INFO - [AudioRecorder] Yielding chunk size=960, total=31680
+2026-01-20 20:22:52,427 - INFO - [AudioRecorder] Yielding chunk size=960, total=32640
+2026-01-20 20:22:52,458 - INFO - [AudioRecorder] Yielding chunk size=960, total=33600
+2026-01-20 20:22:52,487 - INFO - [AudioRecorder] Yielding chunk size=960, total=34560
+2026-01-20 20:22:52,517 - INFO - [AudioRecorder] Yielding chunk size=960, total=35520
+2026-01-20 20:22:52,547 - INFO - [AudioRecorder] Yielding chunk size=960, total=36480
+2026-01-20 20:22:52,577 - INFO - [AudioRecorder] Yielding chunk size=960, total=37440
+2026-01-20 20:22:52,606 - INFO - [AudioRecorder] Yielding chunk size=960, total=38400
+2026-01-20 20:22:52,637 - INFO - [AudioRecorder] Yielding chunk size=960, total=39360
+2026-01-20 20:22:52,667 - INFO - [AudioRecorder] Yielding chunk size=960, total=40320
+2026-01-20 20:22:52,698 - INFO - [AudioRecorder] Yielding chunk size=960, total=41280
+2026-01-20 20:22:52,728 - INFO - [AudioRecorder] Yielding chunk size=960, total=42240
+2026-01-20 20:22:52,758 - INFO - [AudioRecorder] Yielding chunk size=960, total=43200
+2026-01-20 20:22:52,787 - INFO - [AudioRecorder] Yielding chunk size=960, total=44160
+2026-01-20 20:22:52,817 - INFO - [AudioRecorder] Yielding chunk size=960, total=45120
+2026-01-20 20:22:52,847 - INFO - [AudioRecorder] Yielding chunk size=960, total=46080
+2026-01-20 20:22:52,878 - INFO - [AudioRecorder] Yielding chunk size=960, total=47040
+2026-01-20 20:22:52,908 - INFO - [AudioRecorder] Yielding chunk size=960, total=48000
+2026-01-20 20:22:52,937 - INFO - [AudioRecorder] Yielding chunk size=960, total=48960
+2026-01-20 20:22:52,968 - INFO - [AudioRecorder] Yielding chunk size=960, total=49920
+2026-01-20 20:22:52,998 - INFO - [AudioRecorder] Yielding chunk size=960, total=50880
+2026-01-20 20:22:53,027 - INFO - [AudioRecorder] Yielding chunk size=960, total=51840
+2026-01-20 20:22:53,057 - INFO - [AudioRecorder] Yielding chunk size=960, total=52800
+2026-01-20 20:22:53,086 - INFO - [AudioRecorder] Yielding chunk size=960, total=53760
+2026-01-20 20:28:07,295 - INFO - [AudioRecorder] Stream started
+2026-01-20 20:29:33,916 - INFO - [AudioRecorder] Stream started
+2026-01-20 20:33:25,433 - INFO - [AudioRecorder] Stream started

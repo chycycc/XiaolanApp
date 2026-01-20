@@ -29,7 +29,8 @@ import customtkinter as ctk
 from pypinyin import lazy_pinyin
 from volcenginesdkarkruntime import Ark
 
-from realtime_asr2 import AudioRecorder, AsrWsClient
+from realtime_asr2 import AudioRecorder
+from xfyun_asr import recognize_once
 from protocols import MsgType, full_client_request, receive_message
 
 
@@ -166,92 +167,16 @@ KB_COUNT = len(knowledge_base.questions)
 
 
 # ============================================================
-# 3) TTS（火山）
+# 3) TTS（已切换到 Edge TTS）
 # ============================================================
-TTS_APP_ID = "2704273799"
-TTS_ACCESS_TOKEN = "r-50x_Sojl9QmFyvhFny7ZAWFx_Zs1Be"
-TTS_VOICE_TYPE = "zh_male_shaonianzixin_moon_bigtts"
-TTS_ENDPOINT = "wss://openspeech.bytedance.com/api/v1/tts/ws_binary"
-TTS_ENCODING = "wav"
+from edge_tts_client import tts_synthesize, play_wav
 
-
-def get_tts_cluster(voice: str) -> str:
-    if voice.startswith("S_"):
-        return "volcano_icl"
-    return "volcano_tts"
-
-
-async def tts_synthesize(text: str, filename: str = "reply.wav") -> str:
-    cluster = get_tts_cluster(TTS_VOICE_TYPE)
-    headers = {"Authorization": f"Bearer;{TTS_ACCESS_TOKEN}"}
-
-    websocket = await websockets.connect(
-        TTS_ENDPOINT,
-        additional_headers=headers,
-        max_size=10 * 1024 * 1024
-    )
-
-    try:
-        request = {
-            "app": {"appid": TTS_APP_ID, "token": TTS_ACCESS_TOKEN, "cluster": cluster},
-            "user": {"uid": str(uuid.uuid4())},
-            "audio": {"voice_type": TTS_VOICE_TYPE, "encoding": TTS_ENCODING},
-            "request": {
-                "reqid": str(uuid.uuid4()),
-                "text": text,
-                "operation": "submit",
-            },
-        }
-
-        await full_client_request(websocket, json.dumps(request).encode())
-
-        audio_data = bytearray()
-        while True:
-            msg = await receive_message(websocket)
-            if msg.type == MsgType.AudioOnlyServer:
-                audio_data.extend(msg.payload)
-                if msg.sequence < 0:
-                    break
-
-    except Exception as e:
-        logger.error(f"TTS error: {e}")
-        return ""
-    finally:
-        await websocket.close()
-
-    with open(filename, "wb") as f:
-        f.write(audio_data)
-    return filename
-
-
-def play_wav(filename: str):
-    with wave.open(filename, 'rb') as wf:
-        channels = wf.getnchannels()
-        framerate = wf.getframerate()
-        audio_data = wf.readframes(wf.getnframes())
-
-    audio_np = np.frombuffer(audio_data, dtype=np.int16)
-    if channels > 1:
-        audio_np = audio_np.reshape(-1, channels)
-
-    sd.play(audio_np, framerate)
-    sd.wait()
 
 
 # ============================================================
-# 4) ASR 识别一次
+# 4) ASR 识别一次（已切换到科大讯飞）
 # ============================================================
-async def recognize_once(pcm_data: bytes) -> str:
-    url = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream"
-    seg_duration = 200
-    recognized_text = ""
-
-    async with AsrWsClient(url, seg_duration) as client:
-        async for response in client.recognize_audio(pcm_data):
-            if response.is_last_package and response.payload_msg:
-                recognized_text = response.payload_msg.get("result", {}).get("text", "")
-
-    return recognized_text.strip()
+# recognize_once 函数已从 xfyun_asr 模块导入
 
 
 def is_wakeup(text: str) -> bool:
@@ -407,7 +332,7 @@ class ChatGUI(ctk.CTk):
 
         # 语音欢迎
         try:
-            wav = await tts_synthesize("语音问答已开启，请说“你好小蓝”唤醒我。", "voice_on.wav")
+            wav = await tts_synthesize("语音问答已开启，请说“你好小蓝”唤醒我。", "voice_on.mp3")
             if wav:
                 play_wav(wav)
         except Exception:
@@ -425,7 +350,7 @@ class ChatGUI(ctk.CTk):
                 if is_wakeup(wake_text):
                     self.gui_queue.put(("wake_ok", None))
                     try:
-                        wav = await tts_synthesize("我在的，请问有什么可以帮您？", "awake.wav")
+                        wav = await tts_synthesize("我在的，请问有什么可以帮您？", "awake.mp3")
                         if wav:
                             play_wav(wav)
                     except Exception:
@@ -450,7 +375,7 @@ class ChatGUI(ctk.CTk):
                 # 退出语音模式（回到等待唤醒）
                 if any(x in user_text for x in ["退出", "再见", "谢谢"]):
                     try:
-                        wav = await tts_synthesize("好的，我会继续等待您的呼唤。", "bye.wav")
+                        wav = await tts_synthesize("好的，我会继续等待您的呼唤。", "bye.mp3")
                         if wav:
                             play_wav(wav)
                     except Exception:
@@ -463,7 +388,7 @@ class ChatGUI(ctk.CTk):
                 self.gui_queue.put(("bot_reply", reply))
 
                 try:
-                    wav = await tts_synthesize(reply, "reply.wav")
+                    wav = await tts_synthesize(reply, "reply.mp3")
                     if wav:
                         play_wav(wav)
                 except Exception:
@@ -471,7 +396,7 @@ class ChatGUI(ctk.CTk):
 
         # 关闭播报
         try:
-            wav = await tts_synthesize("语音问答已关闭。", "voice_off.wav")
+            wav = await tts_synthesize("语音问答已关闭。", "voice_off.mp3")
             if wav:
                 play_wav(wav)
         except Exception:

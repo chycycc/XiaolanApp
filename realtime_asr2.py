@@ -1,6 +1,7 @@
 import asyncio
 import aiohttp
 import json
+import collections
 import struct
 import gzip
 import uuid
@@ -36,7 +37,7 @@ if not logger.handlers:
 # 常量定义
 DEFAULT_SAMPLE_RATE = 16000
 VAD_AGGRESSIVENESS = 3  # 语音检测灵敏度 0-3，3最灵敏
-SILENCE_THRESHOLD = 1  # 静音阈值(秒)，超过此时长认为说话结束
+SILENCE_THRESHOLD = 0.6  # 缩短静音阈值到0.6秒，加快响应
 RECORDING_CHUNK_DURATION = 30  # 录音块时长(毫秒)
 CHUNK_SIZE = int(DEFAULT_SAMPLE_RATE * RECORDING_CHUNK_DURATION / 1000)  # 每个音频块的样本数
 
@@ -189,15 +190,17 @@ class CommonUtils:
 
 
 class AudioRecorder:
-    """音频录制和语音活动检测类"""
-
     def __init__(self):
         self.vad = webrtcvad.Vad(VAD_AGGRESSIVENESS)
         self.is_recording = False
         self.audio_buffer = b""
+        self.recording_started = False
         self.silence_counter = 0
         self.total_silence = 0.0
-        self.recording_started = False
+        
+        # 预录音缓冲：保存最近300ms的音频（约10帧）
+        # 用于防止首字丢失
+        self.pre_buffer = collections.deque(maxlen=10)
 
     def start(self):
         """开始录音"""
@@ -206,6 +209,7 @@ class AudioRecorder:
         self.silence_counter = 0
         self.total_silence = 0.0
         self.recording_started = False
+        self.pre_buffer.clear()
         print("开始监听语音...")
 
     def stop(self):
@@ -230,19 +234,33 @@ class AudioRecorder:
         is_speech = self.vad.is_speech(pcm_data, DEFAULT_SAMPLE_RATE)
 
         if is_speech:
-            self.recording_started = True
+            if not self.recording_started:
+                # 刚检测到语音，从预缓冲中恢复最近的音频
+                self.recording_started = True
+                print("检测到语音，开始录制...")
+                # 将预缓冲的音频加到开头
+                for chunk in self.pre_buffer:
+                    self.audio_buffer += chunk
+                self.pre_buffer.clear()
+            
             self.audio_buffer += pcm_data
             self.total_silence = 0.0  # 重置静音计时器
             return True, False
         else:
             if self.recording_started:
                 # 已经开始录音，累计静音时间
+                # 即使是静音也录入，保留语流连贯性
+                self.audio_buffer += pcm_data
                 self.total_silence += RECORDING_CHUNK_DURATION / 1000.0
 
                 # 如果静音时间超过阈值，认为说话结束
                 if self.total_silence >= SILENCE_THRESHOLD:
                     self.is_recording = False
                     return False, True
+            else:
+                # 还没开始说话，存入预缓冲
+                self.pre_buffer.append(pcm_data)
+                
             return False, False
 
     async def record_until_silence(self) -> bytes:
