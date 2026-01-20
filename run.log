@@ -1,0 +1,110 @@
+2025-12-15 11:40:43,049 - INFO - Connected to wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream
+2025-12-15 11:40:43,050 - INFO - Sent full client request with seq: 1
+2025-12-15 11:40:43,100 - INFO - Received response: {'code': 0, 'event': 0, 'is_last_package': False, 'payload_sequence': 1, 'payload_size': 110, 'payload_msg': {'audio_info': {'duration': 0}, 'result': {'additions': {'log_id': '202512151140400D22CCE09FCCAFF0E278'}, 'text': ''}}}
+2025-12-15 11:40:43,100 - INFO - Sent audio segment with seq: 2 (last: False)
+2025-12-15 11:40:43,300 - INFO - Sent audio segment with seq: 3 (last: True)
+2025-12-23 08:43:02,437 - INFO - Connected to wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream
+2025-12-23 08:43:02,437 - INFO - Sent full client request with seq: 1
+2025-12-23 08:43:02,495 - INFO - Received response: {'code': 0, 'event': 0, 'is_last_package': False, 'payload_sequence': 1, 'payload_size': 110, 'payload_msg': {'audio_info': {'duration': 0}, 'result': {'additions': {'log_id': '202512230843018A73AC52ADBD0CB72C7D'}, 'text': ''}}}
+2025-12-23 08:43:02,501 - INFO - Sent audio segment with seq: 2 (last: False)
+2025-12-23 08:43:02,708 - INFO - Sent audio segment with seq: 3 (last: False)
+2025-12-23 08:43:02,915 - INFO - Sent audio segment with seq: 4 (last: True)
+2025-12-23 08:43:10,246 - INFO - Connected to wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream
+2025-12-23 08:43:10,246 - INFO - Sent full client request with seq: 1
+2025-12-23 08:43:10,294 - INFO - Received response: {'code': 0, 'event': 0, 'is_last_package': False, 'payload_sequence': 1, 'payload_size': 110, 'payload_msg': {'audio_info': {'duration': 0}, 'result': {'additions': {'log_id': '2025122308430967582E2F2EED0CE9343C'}, 'text': ''}}}
+2025-12-23 08:43:10,294 - INFO - Sent audio segment with seq: 2 (last: False)
+2025-12-23 08:43:10,485 - INFO - Sent audio segment with seq: 3 (last: False)
+2025-12-23 08:43:10,705 - INFO - Sent audio segment with seq: 4 (last: False)
+2025-12-23 08:43:10,922 - INFO - Sent audio segment with seq: 5 (last: True)
+2025-12-23 08:43:20,632 - INFO - Connected to wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream
+2025-12-23 08:43:20,632 - INFO - Sent full client request with seq: 1
+2025-12-23 08:43:20,660 - INFO - Received response: {'code': 0, 'event': 0, 'is_last_package': False, 'payload_sequence': 1, 'payload_size': 110, 'payload_msg': {'audio_info': {'duration': 0}, 'result': {'additions': {'log_id': '202512230843208C7C609D674C38E227B5'}, 'text': ''}}}
+2025-12-23 08:43:20,660 - INFO - Sent audio segment with seq: 2 (last: False)
+2025-12-23 08:43:20,868 - INFO - Sent audio segment with seq: 3 (last: False)
+2025-12-23 08:43:21,077 - INFO - Sent audio segment with seq: 4 (last: False)
+2025-12-23 08:43:21,285 - INFO - Sent audio segment with seq: 5 (last: False)
+2025-12-23 08:43:21,493 - INFO - Sent audio segment with seq: 6 (last: False)
+2025-12-23 08:43:21,702 - INFO - Sent audio segment with seq: 7 (last: False)
+2025-12-23 08:43:21,906 - INFO - Sent audio segment with seq: 8 (last: False)
+2025-12-23 08:43:22,098 - INFO - Sent audio segment with seq: 9 (last: False)
+2025-12-23 08:43:22,306 - INFO - Sent audio segment with seq: 10 (last: False)
+2025-12-23 08:43:22,513 - INFO - Sent audio segment with seq: 11 (last: False)
+2025-12-23 08:43:22,720 - INFO - Sent audio segment with seq: 12 (last: False)
+2025-12-23 08:43:22,926 - INFO - Sent audio segment with seq: 13 (last: False)
+2025-12-23 08:43:23,133 - INFO - Sent audio segment with seq: 14 (last: True)
+2025-12-23 08:43:55,331 - INFO - Connected to wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream
+2025-12-23 08:43:55,331 - INFO - Sent full client request with seq: 1
+2025-12-23 08:43:55,364 - INFO - Received response: {'code': 0, 'event': 0, 'is_last_package': False, 'payload_sequence': 1, 'payload_size': 110, 'payload_msg': {'audio_info': {'duration': 0}, 'result': {'additions': {'log_id': '2025122308435432CCE6948A8408C60360'}, 'text': ''}}}
+2025-12-23 08:43:55,379 - INFO - Sent audio segment with seq: 2 (last: False)
+2025-12-23 08:43:55,587 - INFO - Sent audio segment with seq: 3 (last: False)
+2025-12-23 08:43:55,794 - INFO - Sent audio segment with seq: 4 (last: False)
+2025-12-23 08:43:56,002 - INFO - Sent audio segment with seq: 5 (last: False)
+2025-12-23 08:43:56,209 - INFO - Sent audio segment with seq: 6 (last: False)
+2025-12-23 08:43:56,417 - INFO - Sent audio segment with seq: 7 (last: False)
+2025-12-23 08:43:56,624 - INFO - Sent audio segment with seq: 8 (last: False)
+2025-12-23 08:43:56,832 - INFO - Sent audio segment with seq: 9 (last: False)
+2025-12-23 08:43:57,039 - INFO - Sent audio segment with seq: 10 (last: False)
+2025-12-23 08:43:57,247 - INFO - Sent audio segment with seq: 11 (last: False)
+2025-12-23 08:43:57,455 - INFO - Sent audio segment with seq: 12 (last: False)
+2025-12-23 08:43:57,662 - INFO - Sent audio segment with seq: 13 (last: False)
+2025-12-23 08:43:57,870 - INFO - Sent audio segment with seq: 14 (last: False)
+2025-12-23 08:43:58,077 - INFO - Sent audio segment with seq: 15 (last: False)
+2025-12-23 08:43:58,270 - INFO - Sent audio segment with seq: 16 (last: False)
+2025-12-23 08:43:58,478 - INFO - Sent audio segment with seq: 17 (last: False)
+2025-12-23 08:43:58,687 - INFO - Sent audio segment with seq: 18 (last: False)
+2025-12-23 08:43:58,878 - INFO - Sent audio segment with seq: 19 (last: False)
+2025-12-23 08:43:59,088 - INFO - Sent audio segment with seq: 20 (last: False)
+2025-12-23 08:43:59,294 - INFO - Sent audio segment with seq: 21 (last: False)
+2025-12-23 08:43:59,502 - INFO - Sent audio segment with seq: 22 (last: False)
+2025-12-23 08:43:59,711 - INFO - Sent audio segment with seq: 23 (last: True)
+2025-12-23 09:27:00,253 - INFO - Connected to wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream
+2025-12-23 09:27:00,253 - INFO - Sent full client request with seq: 1
+2025-12-23 09:27:00,290 - INFO - Received response: {'code': 0, 'event': 0, 'is_last_package': False, 'payload_sequence': 1, 'payload_size': 110, 'payload_msg': {'audio_info': {'duration': 0}, 'result': {'additions': {'log_id': '202512230926591DC44F212B7AD8FCF44A'}, 'text': ''}}}
+2025-12-23 09:27:00,291 - INFO - Sent audio segment with seq: 2 (last: False)
+2025-12-23 09:27:00,495 - INFO - Sent audio segment with seq: 3 (last: True)
+2025-12-23 09:27:03,895 - INFO - Connected to wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream
+2025-12-23 09:27:03,895 - INFO - Sent full client request with seq: 1
+2025-12-23 09:27:03,937 - INFO - Received response: {'code': 0, 'event': 0, 'is_last_package': False, 'payload_sequence': 1, 'payload_size': 110, 'payload_msg': {'audio_info': {'duration': 0}, 'result': {'additions': {'log_id': '2025122309270392A8A94BCF6E1EEE1F1A'}, 'text': ''}}}
+2025-12-23 09:27:03,939 - INFO - Sent audio segment with seq: 2 (last: False)
+2025-12-23 09:27:04,155 - INFO - Sent audio segment with seq: 3 (last: False)
+2025-12-23 09:27:04,367 - INFO - Sent audio segment with seq: 4 (last: False)
+2025-12-23 09:27:04,578 - INFO - Sent audio segment with seq: 5 (last: False)
+2025-12-23 09:27:04,780 - INFO - Sent audio segment with seq: 6 (last: True)
+2025-12-23 09:27:13,851 - INFO - Connected to wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream
+2025-12-23 09:27:13,853 - INFO - Sent full client request with seq: 1
+2025-12-23 09:27:13,897 - INFO - Received response: {'code': 0, 'event': 0, 'is_last_package': False, 'payload_sequence': 1, 'payload_size': 110, 'payload_msg': {'audio_info': {'duration': 0}, 'result': {'additions': {'log_id': '20251223092713F90E65043EEEC4E078C1'}, 'text': ''}}}
+2025-12-23 09:27:13,898 - INFO - Sent audio segment with seq: 2 (last: True)
+2025-12-23 09:27:18,086 - INFO - Connected to wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream
+2025-12-23 09:27:18,087 - INFO - Sent full client request with seq: 1
+2025-12-23 09:27:18,127 - INFO - Received response: {'code': 0, 'event': 0, 'is_last_package': False, 'payload_sequence': 1, 'payload_size': 110, 'payload_msg': {'audio_info': {'duration': 0}, 'result': {'additions': {'log_id': '20251223092717D00782BE3B1487A36C19'}, 'text': ''}}}
+2025-12-23 09:27:18,129 - INFO - Sent audio segment with seq: 2 (last: False)
+2025-12-23 09:27:18,349 - INFO - Sent audio segment with seq: 3 (last: False)
+2025-12-23 09:27:18,549 - INFO - Sent audio segment with seq: 4 (last: False)
+2025-12-23 09:27:18,761 - INFO - Sent audio segment with seq: 5 (last: False)
+2025-12-23 09:27:18,961 - INFO - Sent audio segment with seq: 6 (last: False)
+2025-12-23 09:27:19,156 - INFO - Sent audio segment with seq: 7 (last: False)
+2025-12-23 09:27:19,356 - INFO - Sent audio segment with seq: 8 (last: False)
+2025-12-23 09:27:19,550 - INFO - Sent audio segment with seq: 9 (last: False)
+2025-12-23 09:27:19,752 - INFO - Sent audio segment with seq: 10 (last: False)
+2025-12-23 09:27:19,967 - INFO - Sent audio segment with seq: 11 (last: False)
+2025-12-23 09:27:20,173 - INFO - Sent audio segment with seq: 12 (last: False)
+2025-12-23 09:27:20,391 - INFO - Sent audio segment with seq: 13 (last: False)
+2025-12-23 09:27:20,603 - INFO - Sent audio segment with seq: 14 (last: False)
+2025-12-23 09:27:20,798 - INFO - Sent audio segment with seq: 15 (last: True)
+2026-01-08 14:50:45,003 - INFO - Connected to wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream
+2026-01-08 14:50:45,030 - INFO - Sent full client request with seq: 1
+2026-01-08 14:50:45,140 - INFO - Received response: {'code': 0, 'event': 0, 'is_last_package': False, 'payload_sequence': 1, 'payload_size': 110, 'payload_msg': {'audio_info': {'duration': 0}, 'result': {'additions': {'log_id': '202601081450458BD699A8F7D2FDE34574'}, 'text': ''}}}
+2026-01-08 14:50:45,141 - INFO - Sent audio segment with seq: 2 (last: False)
+2026-01-08 14:50:45,349 - INFO - Sent audio segment with seq: 3 (last: False)
+2026-01-08 14:50:45,551 - INFO - Sent audio segment with seq: 4 (last: False)
+2026-01-08 14:50:45,758 - INFO - Sent audio segment with seq: 5 (last: False)
+2026-01-08 14:50:45,957 - INFO - Sent audio segment with seq: 6 (last: False)
+2026-01-08 14:50:46,171 - INFO - Sent audio segment with seq: 7 (last: True)
+2026-01-08 14:50:54,200 - INFO - Connected to wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream
+2026-01-08 14:50:54,201 - INFO - Sent full client request with seq: 1
+2026-01-08 14:50:54,316 - INFO - Received response: {'code': 0, 'event': 0, 'is_last_package': False, 'payload_sequence': 1, 'payload_size': 110, 'payload_msg': {'audio_info': {'duration': 0}, 'result': {'additions': {'log_id': '2026010814505569CBDA415EC746CE8917'}, 'text': ''}}}
+2026-01-08 14:50:54,316 - INFO - Sent audio segment with seq: 2 (last: False)
+2026-01-08 14:50:54,522 - INFO - Sent audio segment with seq: 3 (last: False)
+2026-01-08 14:50:54,735 - INFO - Sent audio segment with seq: 4 (last: False)
+2026-01-08 14:50:54,948 - INFO - Sent audio segment with seq: 5 (last: False)
+2026-01-08 14:50:55,140 - INFO - Sent audio segment with seq: 6 (last: True)

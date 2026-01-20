@@ -1,0 +1,10 @@
+# 忽略的大文件和目录
+vectors/
+data/
+save/
+__pycache__/
+*.pyc
+.DS_Store
+.vscode/
+.idea/
+*.p
