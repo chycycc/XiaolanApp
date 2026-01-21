@@ -39,7 +39,8 @@ from pypinyin import lazy_pinyin
 from volcenginesdkarkruntime import Ark
 
 from realtime_asr2 import AudioRecorder
-from xfyun_asr import recognize_once
+from xfyun_asr import recognize_once, recognize_stream
+from xfyun_rtasr import rtasr_client, start_persistent_asr, stop_persistent_asr, send_audio_chunk
 from protocols import MsgType, full_client_request, receive_message
 
 
@@ -170,7 +171,7 @@ KB_COUNT = len(knowledge_base.questions)
 # ============================================================
 # 3) TTS（已切换到 Edge TTS）
 # ============================================================
-from edge_tts_client import tts_synthesize, play_wav
+from volc_tts_client import tts_synthesize, play_wav
 
 
 
@@ -189,7 +190,7 @@ def is_wakeup(text: str) -> bool:
     py = "".join(lazy_pinyin(raw)).lower()
     possible_xiaolan = [
         "xiaolan", "xiaolang", "xiaonan", "shaolan",
-        "chaolan", "xaolan", "xalan", "xlaolan"
+        "chaolan", "xaolan", "xalan", "xlaolan","xiaola"
     ]
     return any(key in py for key in possible_xiaolan)
 
@@ -355,16 +356,14 @@ class ChatGUI(ctk.CTk):
             
             # 立即播放关闭提示音
             def play_off_sound():
-                import asyncio
-                asyncio.run(self._play_voice_off())
+                try:
+                    play_wav("voice_off.mp3")
+                except Exception:
+                    pass
             threading.Thread(target=play_off_sound, daemon=True).start()
     
-    async def _play_voice_off(self):
-        """播放关闭提示音"""
-        try:
-            play_wav("voice_off.mp3")
-        except Exception:
-            pass
+    # async def _play_voice_off(self): -> Removed
+    #    ...
 
     def _voice_loop_thread(self, run_id):
         """单独线程跑 asyncio 语音循环"""
@@ -375,72 +374,141 @@ class ChatGUI(ctk.CTk):
         return self.voice_running and getattr(self, 'voice_run_id', 0) == run_id
 
     async def _voice_loop_async(self, run_id):
+        """
+        持久连接模式的语音循环
+        - 开启时建立一次WebSocket连接
+        - 循环中持续发送音频
+        - 关闭时才断开连接
+        """
         recorder = AudioRecorder()
-
-        # 语音欢迎（直接播放预生成文件）
+        
+        # 存储识别到的完整句子
+        recognized_sentences = asyncio.Queue()
+        
+        # 句子回调：当识别到完整句子时放入队列
+        async def on_sentence(text, data):
+            if text:
+                await recognized_sentences.put(text)
+        
+        # 语音欢迎（在独立线程中播放，不阻塞连接）
         try:
-            play_wav("voice_on.mp3")
+            threading.Thread(target=play_wav, args=("voice_on.mp3",), daemon=True).start()
         except Exception:
             pass
-
-        while self._should_continue(run_id):
-            # 1) 等待唤醒
+        
+        # 建立持久连接（播放的同时后台连接）
+        try:
+            await start_persistent_asr(on_sentence_callback=on_sentence)
+            logger.info("[语音循环] 持久连接已建立")
+        except Exception as e:
+            logger.error(f"[语音循环] 建立连接失败: {e}")
+            self.gui_queue.put(("voice_error", f"连接失败: {e}"))
+            return
+        
+        try:
+            # 启动常驻麦克风
+            recorder.start_background_recording()
+            recorder.resume()
+            
+            # 后台发送音频的任务
+            async def audio_sender():
+                """持续发送音频到ASR服务"""
+                while self._should_continue(run_id) and rtasr_client.is_connected:
+                    # 从麦克风缓冲读取音频块
+                    if recorder.stream_queue:
+                        try:
+                            chunk = await asyncio.wait_for(recorder.stream_queue.get(), timeout=0.1)
+                            if chunk:
+                                await send_audio_chunk(chunk)
+                        except asyncio.TimeoutError:
+                            # 没有数据，发送静音帧保活（每10秒内必须发送数据）
+                            pass
+                    else:
+                        await asyncio.sleep(0.05)
+            
+            # 启动音频发送任务
+            sender_task = asyncio.create_task(audio_sender())
+            
+            # 主循环：处理识别结果
+            is_awake = False
+            
             while self._should_continue(run_id):
-                pcm_data = await recorder.record_until_silence()
-                if not pcm_data:
+                try:
+                    # 等待识别结果（带超时以便检查should_continue）
+                    text = await asyncio.wait_for(recognized_sentences.get(), timeout=0.5)
+                except asyncio.TimeoutError:
                     continue
-
-                wake_text = await recognize_once(pcm_data)
-                if wake_text:
-                    self.gui_queue.put(("voice_heard", f"[唤醒监听] {wake_text}"))
-
-                if is_wakeup(wake_text):
-                    self.gui_queue.put(("wake_ok", None))
+                
+                if not text:
+                    continue
+                
+                # 过滤无效识别结果（幻听）
+                # 1. 过滤单纯的语气词
+                if text in ["嗯", "嗯嗯", "嗯嗯嗯", "哦", "呃", "啊"]:
+                    print(f"忽略语气词: {text}")
+                    continue
+                
+                # 2. 过滤过短的非唤醒词（少于2个字且非英文）
+                if len(text) < 2 and not text.isascii():
+                    print(f"忽略短文本: {text}")
+                    continue
+                
+                # 1) 唤醒模式
+                if not is_awake:
+                    self.gui_queue.put(("voice_heard", f"[唤醒监听] {text}"))
+                    
+                    if is_wakeup(text):
+                        is_awake = True
+                        self.gui_queue.put(("wake_ok", None))
+                        try:
+                            play_wav("awake.mp3")
+                        except Exception:
+                            pass
+                    continue
+                
+                # 2) 问答模式
+                self.gui_queue.put(("user_voice", text))
+                
+                # 退出检测
+                if any(x in text for x in ["退出", "再见", "谢谢"]):
                     try:
-                        play_wav("awake.mp3")
+                        threading.Thread(target=play_wav, args=("bye.mp3",), daemon=True).start()
                     except Exception:
                         pass
-                    break
-
-                if not self._should_continue(run_id):
-                    break
-
-            # 2) 问答循环
-            while self._should_continue(run_id):
-                pcm_data = await recorder.record_until_silence()
-                if not pcm_data:
-                    continue
-
-                user_text = await recognize_once(pcm_data)
-                if not user_text:
-                    continue
-
-                self.gui_queue.put(("user_voice", user_text))
-
-                # 退出语音模式
-                if any(x in user_text for x in ["退出", "再见", "谢谢"]):
-                    try:
-                        play_wav("bye.mp3")
-                    except Exception:
-                        pass
-                    # 彻底关闭语音
                     self.voice_running = False
                     self.gui_queue.put(("voice_stop", None))
+                    print("语音问答已通过指令关闭")
                     break
-
-                # 回答
-                reply = answer_question(user_text)
+                
+                # 回答问题
+                reply = answer_question(text)
                 self.gui_queue.put(("bot_reply", reply))
-
+                
                 try:
+                    # TTS播放前暂停录音（防止回声干扰）
+                    recorder.pause()
+                    
                     wav = await tts_synthesize(reply, "reply.mp3")
                     if wav:
                         play_wav(wav)
+                        
+                    # TTS播放完成后恢复录音
+                    recorder.resume()
                 except Exception:
-                    pass
-
-        # 关闭播报已在toggle_voice中处理
-        pass
+                    # 确保即使出错也恢复录音
+                    recorder.resume()
+            
+            # 取消发送任务
+            sender_task.cancel()
+            try:
+                await sender_task
+            except asyncio.CancelledError:
+                pass
+                
+        finally:
+            # 断开持久连接
+            await stop_persistent_asr()
+            logger.info("[语音循环] 持久连接已断开")
 
     # -------------------- Queue polling --------------------
     def _start_polling_queue(self):

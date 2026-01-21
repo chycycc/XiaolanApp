@@ -5,7 +5,8 @@
 """
 
 import asyncio
-from edge_tts_client import tts_synthesize
+import asyncio
+from volc_tts_client import tts_synthesize
 
 # 固定语音提示列表
 FIXED_PROMPTS = {

@@ -169,7 +169,7 @@ KB_COUNT = len(knowledge_base.questions)
 # ============================================================
 # 3) TTS（已切换到 Edge TTS）
 # ============================================================
-from edge_tts_client import tts_synthesize, play_wav
+from volc_tts_client import tts_synthesize, play_wav
 
 
 

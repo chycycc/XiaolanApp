@@ -11,6 +11,21 @@ XFYUN_ASR = {
     "url": "wss://iat-api.xfyun.cn/v2/iat"
 }
 
+# ========== 科大讯飞实时语音转写配置（标准版）==========
+XFYUN_RTASR = {
+    "app_id": "e07ef16e",
+    "api_key": "d3994ea7e7620fd40cd85862052d88f1",
+    "url": "wss://rtasr.xfyun.cn/v1/ws"
+}
+
+# ========== 科大讯飞实时语音转写配置（大模型版）==========
+XFYUN_RTASR_BIGMODEL = {
+    "app_id": "e07ef16e",
+    "api_key": "60899c6b3c8e6d71a7f39dca82abd78f",
+    "api_secret": "OTMxZjJjN2NhYjU3YzY5Nzc2YmUzMDdi",
+    "url": "wss://office-api-ast-dx.iflyaisol.com/ast/communicate/v1"
+}
+
 # ========== 大模型配置 ==========
 LLM_PROVIDER = "doubao"  # 可选: doubao, deepseek, qwen, glm
 

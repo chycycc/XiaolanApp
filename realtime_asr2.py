@@ -36,8 +36,8 @@ if not logger.handlers:
 
 # 常量定义
 DEFAULT_SAMPLE_RATE = 16000
-VAD_AGGRESSIVENESS = 3  # 语音检测灵敏度 0-3，3最灵敏
-SILENCE_THRESHOLD = 0.6  # 缩短静音阈值到0.6秒，加快响应
+VAD_AGGRESSIVENESS = 2  # 语音检测灵敏度 0-3，1为中等（减少误触发）
+SILENCE_THRESHOLD = 0.4  # 静音阈值0.4秒，加快响应
 RECORDING_CHUNK_DURATION = 30  # 录音块时长(毫秒)
 CHUNK_SIZE = int(DEFAULT_SAMPLE_RATE * RECORDING_CHUNK_DURATION / 1000)  # 每个音频块的样本数
 
@@ -201,6 +201,10 @@ class AudioRecorder:
         # 预录音缓冲：保存最近300ms的音频（约10帧）
         # 用于防止首字丢失
         self.pre_buffer = collections.deque(maxlen=10)
+        
+        # 常驻流对象
+        self.stream = None
+        self._on_chunk_callback = None
 
     def start(self):
         """开始录音"""
@@ -210,7 +214,7 @@ class AudioRecorder:
         self.total_silence = 0.0
         self.recording_started = False
         self.pre_buffer.clear()
-        print("开始监听语音...")
+        # print("开始监听语音...")
 
     def stop(self):
         """停止录音"""
@@ -263,36 +267,159 @@ class AudioRecorder:
                 
             return False, False
 
-    async def record_until_silence(self) -> bytes:
-        """录制音频直到检测到足够长的静音"""
-        self.start()
+    async def stream_until_silence(self) -> AsyncGenerator[bytes, None]:
+        """
+        [New] 流式录制音频 (Persistent Stream Mode)
+        基于常驻流，不再反复开关硬件
+        """
+        # 确保流已启动
+        self.start_background_recording()
+        self.resume()
+        
+        # 线程安全队列，用于跨线程传递音频数据
+        # 注意：这里每次调用都创建一个新队列，绑定到当前会话
+        current_loop = asyncio.get_running_loop()
+        self.stream_queue = asyncio.Queue()
+        
+        # 内部回调，由process_chunk_stream调用
+        def on_audio_chunk(chunk):
+            if self.stream_queue:
+                current_loop.call_soon_threadsafe(self.stream_queue.put_nowait, chunk)
 
-        # 使用异步方式录制音频
-        loop = asyncio.get_event_loop()
-        future = loop.create_future()
+        # 绑定回调
+        self._on_chunk_callback = on_audio_chunk
+        
+        try:
+            while self.is_recording:
+                # 等待队列中的数据
+                # 增加 timeout 防止死锁（虽然正常不会）
+                chunk = await self.stream_queue.get()
+                
+                if chunk is None: # 结束信号
+                    break
+                
+                yield chunk
+        finally:
+            # 结束后解绑回调，但不关闭流！
+            self._on_chunk_callback = None
+            self.stream_queue = None
+            # 可选：自动暂停处理以节省CPU（VAD仍在跑但回调为空）
+            # self.pause() 
+            pass
 
+    def start_background_recording(self):
+        """[New] 启动常驻录音流（只启动一次）"""
+        if self.stream and self.stream.active:
+            return
+
+        print("[AudioRecorder] 启动常驻麦克风流...")
+        
+        # 初始化队列（用于持久连接模式）
+        self.stream_queue = asyncio.Queue()
+        self._current_loop = asyncio.get_event_loop()
+        
+        # 设置回调：将所有音频块放入队列
+        def on_audio_chunk_persistent(chunk):
+            # 检查事件循环是否仍然运行
+            if self.stream_queue and self._current_loop and not self._current_loop.is_closed():
+                try:
+                    self._current_loop.call_soon_threadsafe(self.stream_queue.put_nowait, chunk)
+                except RuntimeError:
+                    # 事件循环已关闭，忽略
+                    pass
+        
+        self._on_chunk_callback = on_audio_chunk_persistent
+        
         def callback(indata, frames, time, status):
             if status:
-                logger.warning(f"Recording status: {status}")
+                pass
+            self.process_chunk_stream_persistent(indata)
 
-            is_speaking, is_complete = self.process_chunk(indata)
-
-            if is_complete:
-                recorded_data = self.stop()
-                loop.call_soon_threadsafe(future.set_result, recorded_data)
-                raise sd.CallbackStop()
-
-        # 开始录音
-        stream = sd.InputStream(
+        self.stream = sd.InputStream(
             samplerate=DEFAULT_SAMPLE_RATE,
-            blocksize=CHUNK_SIZE,
             channels=1,
             dtype='int16',
+            blocksize=CHUNK_SIZE,
             callback=callback
         )
+        self.stream.start()
+    
+    def process_chunk_stream_persistent(self, indata: np.ndarray):
+        """持久连接模式的流式处理：不判断VAD，所有数据都发送"""
+        if not self.is_recording:
+            return
 
-        with stream:
-            return await future
+        pcm_data = indata.astype(np.int16).tobytes()
+        
+        # 持久连接模式：不需要VAD判断，直接发送所有音频
+        if self._on_chunk_callback:
+            self._on_chunk_callback(pcm_data)
+
+    def process_chunk_stream(self, indata: np.ndarray):
+        """流式处理版本"""
+        # 硬件一直在跑，但只有 is_recording=True 时才处理业务逻辑
+        if not self.is_recording:
+            return
+
+        pcm_data = indata.astype(np.int16).tobytes()
+        is_speech = self.vad.is_speech(pcm_data, DEFAULT_SAMPLE_RATE)
+
+        if is_speech:
+            if not self.recording_started:
+                self.recording_started = True
+                # print("检测到语音(流式)，开始录制...")  # 注释掉减少刷屏
+                # 将预缓冲的音频发送出去
+                if self._on_chunk_callback:
+                    for chunk in self.pre_buffer:
+                        self._on_chunk_callback(chunk)
+                self.pre_buffer.clear()
+            
+            self.total_silence = 0.0
+            if self._on_chunk_callback:
+                self._on_chunk_callback(pcm_data)
+        else:
+            if self.recording_started:
+                # 即使是静音也发送，保留语流连贯性
+                if self._on_chunk_callback:
+                    self._on_chunk_callback(pcm_data)
+                    
+                self.total_silence += RECORDING_CHUNK_DURATION / 1000.0
+                if self.total_silence >= SILENCE_THRESHOLD:
+                    # 说话结束
+                    self.recording_started = False # 重置状态，准备下一次
+                    # 发送结束信号给当前的消费者
+                    if self._on_chunk_callback:
+                        self._on_chunk_callback(None)
+                    
+                    # 注意：这里不设 is_recording=False，
+                    # 而是让 external loop 决定是否退出。
+                    # 但为了兼容 stream_until_silence 的语义：
+                    # break loop.
+                    # 消费者收到 None 会退出 loop。
+                    # 下一次调用 stream_until_silence 会重新 resume。
+            else:
+                self.pre_buffer.append(pcm_data)
+
+    def pause(self):
+        """暂停业务层录音（硬件继续）"""
+        self.is_recording = False
+        self.recording_started = False
+        self.pre_buffer.clear()
+
+    def resume(self):
+        """恢复业务层录音"""
+        self.is_recording = True
+        self.recording_started = False
+        self.total_silence = 0.0
+        self.pre_buffer.clear()
+
+    # 保留原有的非流式接口，兼容旧代码（如果有引用）
+    async def record_until_silence(self) -> bytes:
+        """录制音频直到检测到足够长的静音 (Buffer Mode)"""
+        chunks = []
+        async for chunk in self.stream_until_silence():
+            chunks.append(chunk)
+        return b"".join(chunks)
 
 
 class AsrRequestHeader:
