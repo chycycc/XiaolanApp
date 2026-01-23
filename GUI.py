@@ -169,9 +169,10 @@ KB_COUNT = len(knowledge_base.questions)
 
 
 # ============================================================
-# 3) TTS（已切换到 Edge TTS）
+# 3) TTS（火山引擎 HTTP 版 + 流式版）
 # ============================================================
-from volc_tts_client import tts_synthesize, play_wav
+from volc_tts_client import tts_synthesize, tts_synthesize_and_play, play_wav, volc_tts_close
+
 
 
 
@@ -367,7 +368,12 @@ class ChatGUI(ctk.CTk):
 
     def _voice_loop_thread(self, run_id):
         """单独线程跑 asyncio 语音循环"""
-        asyncio.run(self._voice_loop_async(run_id))
+        try:
+            asyncio.run(self._voice_loop_async(run_id))
+        finally:
+            # 清理 TTS 客户端（避免 Event loop is closed 错误）
+            volc_tts_close()
+            logger.info(f"[语音循环] 结束清理完成 (Session {run_id})")
 
     # check helper
     def _should_continue(self, run_id):
@@ -420,9 +426,14 @@ class ChatGUI(ctk.CTk):
                             chunk = await asyncio.wait_for(recorder.stream_queue.get(), timeout=0.1)
                             if chunk:
                                 await send_audio_chunk(chunk)
+                                last_send_time = time.time()
                         except asyncio.TimeoutError:
-                            # 没有数据，发送静音帧保活（每10秒内必须发送数据）
-                            pass
+                            # 没数据时（例如被pause了），每隔5秒发一次静音帧保活
+                            if time.time() - last_send_time > 5:
+                                # 发送 1280 字节的静音数据 (约40ms)
+                                silence = b'\x00' * 1280
+                                await send_audio_chunk(silence)
+                                last_send_time = time.time()
                     else:
                         await asyncio.sleep(0.05)
             
@@ -467,6 +478,8 @@ class ChatGUI(ctk.CTk):
                     continue
                 
                 # 2) 问答模式
+                t0 = time.time()
+                
                 self.gui_queue.put(("user_voice", text))
                 
                 # 退出检测
@@ -482,15 +495,21 @@ class ChatGUI(ctk.CTk):
                 
                 # 回答问题
                 reply = answer_question(text)
+                t_llm = time.time()
+                
+                perf_stats = {
+                    "t_asr": t0,
+                    "t_llm": t_llm
+                }
+                
                 self.gui_queue.put(("bot_reply", reply))
                 
                 try:
                     # TTS播放前暂停录音（防止回声干扰）
                     recorder.pause()
                     
-                    wav = await tts_synthesize(reply, "reply.mp3")
-                    if wav:
-                        play_wav(wav)
+                    # 暂时使用 HTTP TTS（流式TTS待调试）
+                    await tts_synthesize_and_play(reply, perf_stats=perf_stats)
                         
                     # TTS播放完成后恢复录音
                     recorder.resume()
@@ -506,6 +525,15 @@ class ChatGUI(ctk.CTk):
                 pass
                 
         finally:
+            # 停止录音流
+            if recorder and recorder.stream:
+                try:
+                    recorder.stream.stop()
+                    recorder.stream.close()
+                    logger.info("[语音循环] 麦克风流已关闭")
+                except Exception as e:
+                    logger.error(f"[语音循环] 关闭麦克风流失败: {e}")
+
             # 断开持久连接
             await stop_persistent_asr()
             logger.info("[语音循环] 持久连接已断开")

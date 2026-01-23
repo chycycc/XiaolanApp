@@ -36,8 +36,8 @@ if not logger.handlers:
 
 # 常量定义
 DEFAULT_SAMPLE_RATE = 16000
-VAD_AGGRESSIVENESS = 2  # 语音检测灵敏度 0-3，1为中等（减少误触发）
-SILENCE_THRESHOLD = 0.4  # 静音阈值0.4秒，加快响应
+VAD_AGGRESSIVENESS = 1  # 语音检测灵敏度 0-3，1为中等（减少误触发）
+SILENCE_THRESHOLD = 0.6  # 静音阈值0.4秒，加快响应
 RECORDING_CHUNK_DURATION = 30  # 录音块时长(毫秒)
 CHUNK_SIZE = int(DEFAULT_SAMPLE_RATE * RECORDING_CHUNK_DURATION / 1000)  # 每个音频块的样本数
 

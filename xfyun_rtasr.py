@@ -194,8 +194,8 @@ class XfyunRTASR:
             except asyncio.TimeoutError:
                 # 超时是正常的，继续等待
                 continue
-            except websockets.exceptions.ConnectionClosed:
-                logger.info("[讯飞RTASR] 接收循环：连接已关闭")
+            except websockets.exceptions.ConnectionClosed as e:
+                logger.info(f"[讯飞RTASR] 接收循环：连接已关闭 (Code={e.code}, Reason={e.reason})")
                 self.is_connected = False
                 break
             except Exception as e:
