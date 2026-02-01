@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+def resource_path(relative_path: str) -> str:
+    """兼容 PyInstaller 打包后的资源路径"""
+    if hasattr(sys, "_MEIPASS"):
+        base_path = sys._MEIPASS  # PyInstaller 临时解压目录
+    else:
+        base_path = os.path.dirname(__file__)
+    return os.path.join(base_path, relative_path)
+
+
 import os
 import sys
 import json
@@ -11,8 +20,8 @@ import queue
 import threading
 import asyncio
 import logging
-
 import numpy as np
+
 import pandas as pd
 
 try:
@@ -30,17 +39,9 @@ from pypinyin import lazy_pinyin
 from volcenginesdkarkruntime import Ark
 
 from realtime_asr2 import AudioRecorder
-from xfyun_asr import recognize_once
+from xfyun_asr import recognize_once, recognize_stream
+from xfyun_rtasr import rtasr_client, start_persistent_asr, stop_persistent_asr, send_audio_chunk
 from protocols import MsgType, full_client_request, receive_message
-
-
-def resource_path(relative_path: str) -> str:
-    """兼容 PyInstaller 打包后的资源路径"""
-    if hasattr(sys, "_MEIPASS"):
-        base_path = sys._MEIPASS  # PyInstaller 临时解压目录
-    else:
-        base_path = os.path.dirname(__file__)
-    return os.path.join(base_path, relative_path)
 
 
 # ---------------------------
@@ -53,12 +54,17 @@ logger = logging.getLogger(__name__)
 # ============================================================
 # 1) 豆包大模型
 # ============================================================
-ARK_API_KEY = "9a67bf10-9397-49ad-a695-b64f19f56d1b"
+from config import LLM_PROVIDER, LLM_CONFIGS
+
+current_llm_conf = LLM_CONFIGS.get(LLM_PROVIDER, LLM_CONFIGS["doubao"])
+
+ARK_API_KEY = current_llm_conf["api_key"]
+MODEL_NAME = current_llm_conf["model"]
+
 ark_client = Ark(
-    base_url="https://ark.cn-beijing.volces.com/api/v3",
+    base_url=current_llm_conf["base_url"],
     api_key=ARK_API_KEY,
 )
-MODEL_NAME = "doubao-1-5-pro-32k-250115"
 
 
 def chat_with_ark(messages):
@@ -73,6 +79,7 @@ def chat_with_ark(messages):
 # 2) 知识库（knowledge.xlsx）
 # ============================================================
 KB_PATH = resource_path("knowledge.xlsx")
+
 
 
 class KnowledgeBase:
@@ -127,7 +134,7 @@ class KnowledgeBase:
         if SKLEARN_AVAILABLE:
             self.vectorizer = TfidfVectorizer(
                 analyzer="char",
-                ngram_range=(2, 4),
+                ngram_range=(1, 4), # 单字匹配 (1-gram)
                 min_df=1
             )
             self.q_matrix = self.vectorizer.fit_transform(self.questions)
@@ -167,9 +174,10 @@ KB_COUNT = len(knowledge_base.questions)
 
 
 # ============================================================
-# 3) TTS（已切换到 Edge TTS）
+# 3) TTS（火山引擎 HTTP 版 + 流式版）
 # ============================================================
-from volc_tts_client import tts_synthesize, play_wav
+from volc_tts_client import tts_synthesize, tts_synthesize_and_play, play_wav, volc_tts_close, stop_playback
+
 
 
 
@@ -188,17 +196,17 @@ def is_wakeup(text: str) -> bool:
     py = "".join(lazy_pinyin(raw)).lower()
     possible_xiaolan = [
         "xiaolan", "xiaolang", "xiaonan", "shaolan",
-        "chaolan", "xaolan", "xalan", "xlaolan"
+        "chaolan", "xaolan", "xalan", "xlaolan","xiaola"
     ]
     return any(key in py for key in possible_xiaolan)
 
 
 # ============================================================
-# 5) 统一问答入口（语音用这个）
+# 5) 统一问答入口（文本和语音都用这个）
 # ============================================================
 def answer_question(user_text: str) -> str:
     # 1) 先查知识库
-    kb_answer = knowledge_base.query(user_text, threshold=0.60)
+    kb_answer = knowledge_base.query(user_text, threshold=0.55)
     if kb_answer:
         return kb_answer
 
@@ -215,19 +223,19 @@ def answer_question(user_text: str) -> str:
 
 
 # ============================================================
-# 6) GUI（仅语音版）
+# 6) GUI (纯语音极简版)
 # ============================================================
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 
-class ChatGUI(ctk.CTk):
+class VoiceGUI(ctk.CTk):
 
     def __init__(self):
         super().__init__()
-        self.title("迪尔空分 · 智能语音助手 小蓝")
-        self.geometry("1100x650")
-        self.minsize(900, 560)
+        self.title("小蓝语音助手 (Pure Voice Mode)")
+        self.geometry("900x600") # 增大窗口
+        self.minsize(900, 600)  # 限制最小尺寸
 
         self.voice_running = False
         self.voice_thread = None
@@ -235,172 +243,266 @@ class ChatGUI(ctk.CTk):
 
         self._build_ui()
         self._start_polling_queue()
+        
+        # 绑定关闭事件
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-        # 启动欢迎（仅语音版说明）
-        self.append_chat("小蓝", "您好，我是迪尔空分公司的智能语音助手小蓝。")
+    def on_closing(self):
+        # 停止播放和语音循环
+        self.voice_running = False
+        stop_playback()
+        self.destroy()
 
     def _build_ui(self):
         # 顶部标题区
-        top = ctk.CTkFrame(self, height=90, corner_radius=0)
-        top.pack(fill="x", side="top")
+        top = ctk.CTkFrame(self, height=80, corner_radius=0)
+        top.pack(fill="x", side="top", pady=(0, 0))
 
         title = ctk.CTkLabel(
             top, text="迪尔空分 · 智能语音助手  小蓝",
             font=ctk.CTkFont(size=28, weight="bold")
         )
-        title.pack(anchor="w", padx=20, pady=(14, 0))
+        title.pack(anchor="w", padx=20, pady=(15, 0))
 
         subtitle = ctk.CTkLabel(
             top, text="企业级知识库驱动 · 语音唤醒 · 语音问答",
             font=ctk.CTkFont(size=14)
         )
-        subtitle.pack(anchor="w", padx=22, pady=(2, 10))
+        subtitle.pack(anchor="w", padx=22, pady=(0, 10))
 
-        # 顶部右侧状态+按钮
+        # 顶部右侧状态
         right = ctk.CTkFrame(top, fg_color="transparent")
         right.place(relx=1.0, rely=0.5, x=-20, y=0, anchor="e")
 
-        self.status_label = ctk.CTkLabel(
-            right,
-            text=f"状态：空闲  |  已加载知识库 {KB_COUNT} 条问答",
-            font=ctk.CTkFont(size=13)
+        self.status_bar = ctk.CTkLabel(
+            right, text=f"知识库: {KB_COUNT} | 引擎: 科大讯飞 + Doubao + VolcTTS",
+            font=ctk.CTkFont(size=12),
+            text_color="gray"
         )
-        self.status_label.pack(side="left", padx=(0, 12))
+        self.status_bar.pack(side="right")
+
+        # 底部控制区 (先 pack side=bottom) - 只有按钮
+        bottom = ctk.CTkFrame(self, height=100)
+        bottom.pack(fill="x", side="bottom", padx=15, pady=(0, 15))
 
         self.voice_btn = ctk.CTkButton(
-            right, text="开启语音问答", width=130, height=36,
-            command=self.toggle_voice
+            bottom, text="开启语音问答", 
+            height=60, 
+            font=ctk.CTkFont(size=22, weight="bold"),
+            command=self.toggle_voice,
+            fg_color="#1F6AA5", hover_color="#144870"
         )
-        self.voice_btn.pack(side="left")
+        self.voice_btn.pack(fill="x", padx=30, pady=15)
 
-        # 主体：聊天显示区
+        # 中间聊天显示区 (最后 pack，占据剩余空间)
         mid = ctk.CTkFrame(self)
-        mid.pack(fill="both", expand=True, padx=15, pady=(10, 10))
+        mid.pack(fill="both", expand=True, padx=10, pady=10)
 
         self.chat_box = ctk.CTkTextbox(
-            mid, wrap="word",
-            font=ctk.CTkFont(size=15),
-            corner_radius=12
+            mid, 
+            font=ctk.CTkFont(size=18), # 适中的字体
+            wrap="word",
+            corner_radius=12,
+            fg_color="transparent" # 透明背景适应主题
         )
-        self.chat_box.pack(fill="both", expand=True, padx=8, pady=8)
+        # 如果需要更像 ChatBox，可以给 text_color
+        self.chat_box.pack(fill="both", expand=True, padx=5, pady=5)
         self.chat_box.configure(state="disabled")
+        
+        # 初始欢迎语
+        self.append_chat("系统", "已就绪。点击下方按钮开始语音对话...", "yellow")
 
-        # 底部提示区（替代原文本输入框）
-        bottom = ctk.CTkFrame(self, height=60, corner_radius=12)
-        bottom.pack(fill="x", side="bottom", padx=15, pady=(0, 12))
 
-        hint = ctk.CTkLabel(
-            bottom,
-            text="点击【开启语音问答】→ 说“你好小蓝”唤醒 → 提问；说“退出/再见/谢谢”返回等待唤醒。",
-            font=ctk.CTkFont(size=13)
-        )
-        hint.pack(anchor="w", padx=14, pady=16)
-
-    # -------------------- GUI Chat helpers --------------------
-    def append_chat(self, role, text):
+    def append_chat(self, role, text, color=None):
         self.chat_box.configure(state="normal")
-        self.chat_box.insert("end", f"{role}：{text}\n\n")
+        
+        # 检查是否是第一条消息（如果为空，则不需要开头的换行）
+        is_empty = self.chat_box.get("1.0", "end-1c").strip() == ""
+        prefix = "" if is_empty else "\n"
+
+        # 格式化输出
+        if role == "你":
+            header = f"{prefix}{role} ({time.strftime('%H:%M:%S')}):\n"
+        elif role == "小蓝":
+            header = f"{prefix}{role} ({time.strftime('%H:%M:%S')}):\n"
+        else:
+            header = f"{prefix}{role}: " # 去掉换行，改为空格
+            
+        self.chat_box.insert("end", header)
+        self.chat_box.insert("end", f"{text}\n")
+        
         self.chat_box.see("end")
         self.chat_box.configure(state="disabled")
-
-    def set_status(self, text):
-        self.status_label.configure(text=text)
 
     # -------------------- Voice toggle --------------------
     def toggle_voice(self):
         if not self.voice_running:
             self.voice_running = True
-            self.voice_btn.configure(text="关闭语音问答")
-            self.set_status("状态：等待唤醒（你好小蓝）...")
+            self.voice_run_id = self.voice_run_id + 1 if hasattr(self, 'voice_run_id') else 1
+            current_run_id = self.voice_run_id
+            
+            self.voice_btn.configure(text="关闭 (Listening...)", fg_color="#C0392B", hover_color="#922B21")
+            
+            self.append_chat("系统", f"语音问答已开启，等待唤醒 (你好小蓝)...")
+            print(f"语音问答已开启 (Session {current_run_id})，等待唤醒...")
 
-            self.voice_thread = threading.Thread(target=self._voice_loop_thread, daemon=True)
+            self.voice_thread = threading.Thread(target=self._voice_loop_thread, args=(current_run_id,), daemon=True)
             self.voice_thread.start()
-
-            self.append_chat("系统", "🎙️ 语音问答已开启：请说“你好小蓝”唤醒。")
         else:
             self.voice_running = False
-            self.voice_btn.configure(text="开启语音问答")
-            self.set_status(f"状态：空闲  |  已加载知识库 {KB_COUNT} 条问答")
-            self.append_chat("系统", "🛑 语音问答已关闭。")
+            # 立即停止播放
+            stop_playback()
+            
+            self.voice_btn.configure(text="开启语音问答", fg_color="#1F6AA5", hover_color="#144870")
+            
+            self.append_chat("系统", "语音已关闭")
+            
+            # 立即播放关闭提示音
+            def play_off_sound():
+                try:
+                    play_wav("voice_off.mp3")
+                except Exception:
+                    pass
+            threading.Thread(target=play_off_sound, daemon=True).start()
 
-    def _voice_loop_thread(self):
+    def _voice_loop_thread(self, run_id):
         """单独线程跑 asyncio 语音循环"""
-        asyncio.run(self._voice_loop_async())
-
-    async def _voice_loop_async(self):
-        recorder = AudioRecorder()
-
-        # 语音欢迎
         try:
-            wav = await tts_synthesize("语音问答已开启，请说“你好小蓝”唤醒我。", "voice_on.mp3")
-            if wav:
-                play_wav(wav)
+            asyncio.run(self._voice_loop_async(run_id))
+        finally:
+            # 清理 TTS 客户端
+            volc_tts_close()
+            logger.info(f"[语音循环] 结束清理完成 (Session {run_id})")
+
+    def _should_continue(self, run_id):
+        return self.voice_running and getattr(self, 'voice_run_id', 0) == run_id
+
+    async def _voice_loop_async(self, run_id):
+        """
+        持久连接模式的语音循环
+        """
+        recorder = AudioRecorder()
+        recognized_sentences = asyncio.Queue()
+        
+        async def on_sentence(text, data):
+            if text:
+                await recognized_sentences.put(text)
+        
+        try:
+            threading.Thread(target=play_wav, args=("voice_on.mp3",), daemon=True).start()
         except Exception:
             pass
-
-        while self.voice_running:
-            # 1) 等待唤醒
-            while self.voice_running:
-                pcm_data = await recorder.record_until_silence()
-                if not pcm_data:
-                    continue
-
-                wake_text = await recognize_once(pcm_data)
-
-                if is_wakeup(wake_text):
-                    self.gui_queue.put(("wake_ok", None))
-                    try:
-                        wav = await tts_synthesize("我在的，请问有什么可以帮您？", "awake.mp3")
-                        if wav:
-                            play_wav(wav)
-                    except Exception:
-                        pass
-                    break
-
-            if not self.voice_running:
-                break
-
-            # 2) 问答循环
-            while self.voice_running:
-                pcm_data = await recorder.record_until_silence()
-                if not pcm_data:
-                    continue
-
-                user_text = await recognize_once(pcm_data)
-                if not user_text:
-                    continue
-
-                self.gui_queue.put(("user_voice", user_text))
-
-                # 退出语音模式（回到等待唤醒）
-                if any(x in user_text for x in ["退出", "再见", "谢谢"]):
-                    try:
-                        wav = await tts_synthesize("好的，我会继续等待您的呼唤。", "bye.mp3")
-                        if wav:
-                            play_wav(wav)
-                    except Exception:
-                        pass
-                    self.gui_queue.put(("back_to_wake", None))
-                    break
-
-                # 回答
-                reply = answer_question(user_text)
-                self.gui_queue.put(("bot_reply", reply))
-
+        
+        try:
+            await start_persistent_asr(on_sentence_callback=on_sentence)
+            logger.info("[语音循环] 持久连接已建立")
+        except Exception as e:
+            logger.error(f"[语音循环] 建立连接失败: {e}")
+            self.gui_queue.put(("error", f"连接失败: {e}"))
+            return
+        
+        try:
+            recorder.start_background_recording()
+            recorder.resume()
+            
+            async def audio_sender():
+                while self._should_continue(run_id) and rtasr_client.is_connected:
+                    if recorder.stream_queue:
+                        try:
+                            chunk = await asyncio.wait_for(recorder.stream_queue.get(), timeout=0.1)
+                            if chunk:
+                                await send_audio_chunk(chunk)
+                                last_send_time = time.time()
+                        except asyncio.TimeoutError:
+                            if time.time() - last_send_time > 5:
+                                silence = b'\x00' * 1280
+                                await send_audio_chunk(silence)
+                                last_send_time = time.time()
+                    else:
+                        await asyncio.sleep(0.05)
+            
+            sender_task = asyncio.create_task(audio_sender())
+            
+            is_awake = False
+            
+            while self._should_continue(run_id):
                 try:
-                    wav = await tts_synthesize(reply, "reply.mp3")
-                    if wav:
-                        play_wav(wav)
+                    text = await asyncio.wait_for(recognized_sentences.get(), timeout=0.5)
+                except asyncio.TimeoutError:
+                    continue
+                
+                if not text:
+                    continue
+                
+                if text in ["嗯", "嗯嗯", "嗯嗯嗯", "哦", "呃", "啊"]:
+                    continue
+                
+                if len(text) < 2 and not text.isascii():
+                    continue
+                
+                # 1) 唤醒模式
+                if not is_awake:
+                    self.gui_queue.put(("heard", f"[唤醒监听] {text}"))
+                    
+                    if is_wakeup(text):
+                        is_awake = True
+                        self.gui_queue.put(("wake_ok", None))
+                        try:
+                            recorder.pause()
+                            play_wav("awake.mp3")
+                            recorder.resume()
+                        except Exception:
+                            recorder.resume()
+                    continue
+                
+                # 2) 问答模式
+                t0 = time.time()
+                
+                self.gui_queue.put(("user", text))
+                
+                if any(x in text for x in ["退出", "再见", "谢谢"]):
+                    try:
+                        threading.Thread(target=play_wav, args=("bye.mp3",), daemon=True).start()
+                    except Exception:
+                        pass
+                    self.voice_running = False
+                    self.gui_queue.put(("stop", None))
+                    break
+                
+                # 回答问题
+                self.gui_queue.put(("status", "Brain is thinking..."))
+                reply = answer_question(text)
+                t_llm = time.time()
+                
+                perf_stats = {
+                    "t_asr": t0,
+                    "t_llm": t_llm
+                }
+                
+                self.gui_queue.put(("bot", reply))
+                
+                try:
+                    recorder.pause()
+                    await tts_synthesize_and_play(reply, perf_stats=perf_stats)
+                    recorder.resume()
+                except Exception:
+                    recorder.resume()
+            
+            sender_task.cancel()
+            try:
+                await sender_task
+            except asyncio.CancelledError:
+                pass
+                
+        finally:
+            if recorder and recorder.stream:
+                try:
+                    recorder.stream.stop()
+                    recorder.stream.close()
                 except Exception:
                     pass
 
-        # 关闭播报
-        try:
-            wav = await tts_synthesize("语音问答已关闭。", "voice_off.mp3")
-            if wav:
-                play_wav(wav)
-        except Exception:
-            pass
+            await stop_persistent_asr()
 
     # -------------------- Queue polling --------------------
     def _start_polling_queue(self):
@@ -409,26 +511,28 @@ class ChatGUI(ctk.CTk):
     def _poll_queue(self):
         try:
             while True:
-                kind, payload = self.gui_queue.get_nowait()
+                item = self.gui_queue.get_nowait()
+                kind, payload = item
 
-                if kind == "user_voice":
+                if kind == "user":
                     self.append_chat("你", payload)
-                    self.set_status("状态：思考中 ...")
-
-                elif kind == "bot_reply":
+                
+                elif kind == "bot":
                     self.append_chat("小蓝", payload)
-                    if self.voice_running:
-                        self.set_status("状态：语音对话中 ...")
-                    else:
-                        self.set_status(f"状态：空闲  |  已加载知识库 {KB_COUNT} 条问答")
+
+                elif kind == "status":
+                    # 状态更新显示在标题栏或者简单的print
+                    self.status_bar.configure(text=payload)
+
+                elif kind == "heard":
+                    pass # 不显示监听杂音
 
                 elif kind == "wake_ok":
-                    self.append_chat("系统", "✅ 已唤醒：你好，小蓝！")
-                    self.set_status("状态：语音对话中 ...")
+                    self.append_chat("小蓝", "✅ 已唤醒！请吩咐...")
 
-                elif kind == "back_to_wake":
-                    self.append_chat("系统", "（已返回等待唤醒模式）")
-                    self.set_status("状态：等待唤醒（你好小蓝）...")
+                elif kind == "stop":
+                    self.voice_btn.configure(text="开启语音问答", fg_color="#1F6AA5", hover_color="#144870")
+                    self.append_chat("系统", "语音已关闭")
 
         except queue.Empty:
             pass
@@ -437,5 +541,5 @@ class ChatGUI(ctk.CTk):
 
 
 if __name__ == "__main__":
-    app = ChatGUI()
+    app = VoiceGUI()
     app.mainloop()

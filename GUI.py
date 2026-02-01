@@ -54,12 +54,20 @@ logger = logging.getLogger(__name__)
 # ============================================================
 # 1) 豆包大模型
 # ============================================================
-ARK_API_KEY = "9a67bf10-9397-49ad-a695-b64f19f56d1b"
+# ============================================================
+# 1) 大模型配置 (从 config.py 加载)
+# ============================================================
+from config import LLM_PROVIDER, LLM_CONFIGS
+
+current_llm_conf = LLM_CONFIGS.get(LLM_PROVIDER, LLM_CONFIGS["doubao"])
+
+ARK_API_KEY = current_llm_conf["api_key"]
+MODEL_NAME = current_llm_conf["model"]
+
 ark_client = Ark(
-    base_url="https://ark.cn-beijing.volces.com/api/v3",
+    base_url=current_llm_conf["base_url"],
     api_key=ARK_API_KEY,
 )
-MODEL_NAME = "doubao-1-5-pro-32k-250115"
 
 
 def chat_with_ark(messages):
@@ -129,7 +137,8 @@ class KnowledgeBase:
         if SKLEARN_AVAILABLE:
             self.vectorizer = TfidfVectorizer(
                 analyzer="char",
-                ngram_range=(2, 4),
+                # ngram_range=(2, 4), # 连词匹配
+                ngram_range=(1, 4), # 单字匹配
                 min_df=1
             )
             self.q_matrix = self.vectorizer.fit_transform(self.questions)
@@ -171,7 +180,7 @@ KB_COUNT = len(knowledge_base.questions)
 # ============================================================
 # 3) TTS（火山引擎 HTTP 版 + 流式版）
 # ============================================================
-from volc_tts_client import tts_synthesize, tts_synthesize_and_play, play_wav, volc_tts_close
+from volc_tts_client import tts_synthesize, tts_synthesize_and_play, play_wav, volc_tts_close, stop_playback
 
 
 
@@ -201,7 +210,7 @@ def is_wakeup(text: str) -> bool:
 # ============================================================
 def answer_question(user_text: str) -> str:
     # 1) 先查知识库
-    kb_answer = knowledge_base.query(user_text, threshold=0.60)
+    kb_answer = knowledge_base.query(user_text, threshold=0.55)
     if kb_answer:
         return kb_answer
 
@@ -232,6 +241,9 @@ class ChatGUI(ctk.CTk):
         self.geometry("1100x650")
         self.minsize(900, 560)
 
+        # 绑定关闭事件
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
         self.voice_running = False
         self.voice_thread = None
         self.gui_queue = queue.Queue()
@@ -240,7 +252,14 @@ class ChatGUI(ctk.CTk):
         self._start_polling_queue()
 
         # 启动欢迎
+        # 启动欢迎
         self.append_chat("小蓝", "您好，我是迪尔空分公司的问答机器人小蓝，支持文本和语音两种问答方式。")
+
+    def on_closing(self):
+        # 停止播放和语音循环
+        self.voice_running = False
+        stop_playback()
+        self.destroy()
 
     def _build_ui(self):
         # 顶部标题区
@@ -355,6 +374,9 @@ class ChatGUI(ctk.CTk):
             self.set_status(f"状态：空闲  |  已加载知识库 {KB_COUNT} 条问答")
             print("语音问答已关闭")
             
+            # 立即停止播放
+            stop_playback()
+            
             # 立即播放关闭提示音
             def play_off_sound():
                 try:
@@ -396,23 +418,27 @@ class ChatGUI(ctk.CTk):
             if text:
                 await recognized_sentences.put(text)
         
-        # 语音欢迎（在独立线程中播放，不阻塞连接）
+        # 并行启动：1. 开始联网 2. 播放欢迎语
+        # 联网任务（后台）
+        connect_task = asyncio.create_task(start_persistent_asr(on_sentence_callback=on_sentence))
+        
+        # 播放欢迎语（阻塞，避免自录音）
         try:
-            threading.Thread(target=play_wav, args=("voice_on.mp3",), daemon=True).start()
+            await asyncio.to_thread(play_wav, "voice_on.mp3")
         except Exception:
             pass
         
-        # 建立持久连接（播放的同时后台连接）
+        # 等待连接完成
         try:
-            await start_persistent_asr(on_sentence_callback=on_sentence)
-            logger.info("[语音循环] 持久连接已建立")
+            await connect_task
+            logger.info("[语音循环] 持久连接已建立 (并行启动成功)")
         except Exception as e:
             logger.error(f"[语音循环] 建立连接失败: {e}")
             self.gui_queue.put(("voice_error", f"连接失败: {e}"))
             return
         
         try:
-            # 启动常驻麦克风
+            # 启动常驻麦克风 (此时欢迎语已播完)
             recorder.start_background_recording()
             recorder.resume()
             
@@ -472,9 +498,11 @@ class ChatGUI(ctk.CTk):
                         is_awake = True
                         self.gui_queue.put(("wake_ok", None))
                         try:
+                            recorder.pause()
                             play_wav("awake.mp3")
+                            recorder.resume()
                         except Exception:
-                            pass
+                            recorder.resume()
                     continue
                 
                 # 2) 问答模式

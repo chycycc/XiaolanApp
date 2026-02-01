@@ -30,10 +30,15 @@ XFYUN_RTASR_BIGMODEL = {
 LLM_PROVIDER = "doubao"  # 可选: doubao, deepseek, qwen, glm
 
 LLM_CONFIGS = {
+    # "doubao": {
+    #     "api_key": "9a67bf10-9397-49ad-a695-b64f19f56d1b",
+    #     "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+    #     "model": "doubao-1-5-pro-32k-250115"
+    # },
     "doubao": {
-        "api_key": "9a67bf10-9397-49ad-a695-b64f19f56d1b",
+        "api_key": "ef4fb7f0-66ac-446d-b98c-4da64ac7af6e",
         "base_url": "https://ark.cn-beijing.volces.com/api/v3",
-        "model": "doubao-1-5-pro-32k-250115"
+        "model": "doubao-1-5-lite-32k-250115"
     },
     "deepseek": {
         "api_key": "your-deepseek-key",
@@ -53,13 +58,19 @@ LLM_CONFIGS = {
 }
 
 # ========== 火山TTS配置（保持不变）==========
+# VOLCANO_TTS = {
+#     "app_id": "2704273799",
+#     "access_token": "r-50x_Sojl9QmFyvhFny7ZAWFx_Zs1Be",
+#     "voice_type": "zh_male_shaonianzixin_moon_bigtts",
+#     "endpoint": "wss://openspeech.bytedance.com/api/v1/tts/ws_binary"
+# }
 VOLCANO_TTS = {
-    "app_id": "2704273799",
-    "access_token": "r-50x_Sojl9QmFyvhFny7ZAWFx_Zs1Be",
+    "app_id": "5084058974",
+    "access_token": "Oy6zmFx0QMQa4wjhwqzLvs_8Xohw4Agy",
+    # "voice_type": "zh_female_daimengchuanmei_moon_bigtts",
     "voice_type": "zh_male_shaonianzixin_moon_bigtts",
-    "endpoint": "wss://openspeech.bytedance.com/api/v1/tts/ws_binary"
+    # "endpoint": "wss://openspeech.bytedance.com/api/v1/tts/ws_binary"
 }
-
 # ========== 音频参数 ==========
 AUDIO_SAMPLE_RATE = 16000
 AUDIO_CHANNELS = 1
