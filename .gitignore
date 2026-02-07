@@ -1,10 +1,41 @@
-# 忽略的大文件和目录
-vectors/
-data/
-save/
+# 忽略的文件和目录
+
+# Python 缓存
 __pycache__/
 *.pyc
-.DS_Store
+*.pyo
+*.pyd
+.Python
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# IDE
 .vscode/
 .idea/
-*.p
+
+# 日志文件
+*.log
+run.log
+
+# PyInstaller 打包输出
+build/
+dist/
+*.spec.bak
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# 临时文件
+*.tmp
+*.temp
+
+# 旧的废弃目录
+vectors/
+save/

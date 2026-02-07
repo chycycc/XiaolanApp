@@ -5,7 +5,7 @@ a = Analysis(
     ['GUI.py'],
     pathex=[],
     binaries=[],
-    datas=[('knowledge.xlsx', '.')],
+    datas=[('data/knowledge.xlsx', 'data'), ('audio', 'audio')],
     hiddenimports=['webrtcvad', 'sklearn.utils._cython_blas', 'sklearn.neighbors.typedefs', 'sklearn.neighbors.quad_tree'],
     hookspath=['extra-hooks'],
     hooksconfig={},

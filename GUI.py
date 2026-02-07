@@ -1,5 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+小蓝助手 - 图形界面版 (文本+语音双模式)
+
+功能:
+    - 文本聊天: 用户可以通过输入框进行文本对话
+    - 语音问答: 支持语音唤醒(你好小蓝)和语音对话
+    - 知识库匹配: 基于 TF-IDF 的问答匹配
+    - LLM 对话: 调用大模型进行智能对话
+    - TTS 语音播报: 将回答转换为语音播放
+
+依赖模块:
+    - audio_recorder: 麦克风录音和VAD
+    - xfyun_rtasr: 讯飞实时语音转写
+    - volc_tts_client: 火山引擎TTS语音合成
+    - config: 统一配置管理
+
+Author: XiaolanApp Team
+"""
 
 def resource_path(relative_path: str) -> str:
     """兼容 PyInstaller 打包后的资源路径"""
@@ -12,10 +30,7 @@ def resource_path(relative_path: str) -> str:
 
 import os
 import sys
-import json
-import uuid
 import time
-import wave
 import queue
 import threading
 import asyncio
@@ -32,16 +47,15 @@ except ImportError:
     SKLEARN_AVAILABLE = False
     import difflib
 
-import sounddevice as sd
-import websockets
 import customtkinter as ctk
 from pypinyin import lazy_pinyin
 from volcenginesdkarkruntime import Ark
 
-from realtime_asr2 import AudioRecorder
-from xfyun_asr import recognize_once, recognize_stream
-from xfyun_rtasr import rtasr_client, start_persistent_asr, stop_persistent_asr, send_audio_chunk
-from protocols import MsgType, full_client_request, receive_message
+# 语音模块
+# 麦克风录音 + VAD
+from audio_recorder import AudioRecorder                        
+# 讯飞实时语音转写
+from xfyun_rtasr import rtasr_client, start_persistent_asr, stop_persistent_asr, send_audio_chunk  
 
 
 # ---------------------------
@@ -51,9 +65,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# ============================================================
-# 1) 豆包大模型
-# ============================================================
 # ============================================================
 # 1) 大模型配置 (从 config.py 加载)
 # ============================================================
@@ -81,7 +92,7 @@ def chat_with_ark(messages):
 # ============================================================
 # 2) 知识库（knowledge.xlsx）
 # ============================================================
-KB_PATH = resource_path("knowledge.xlsx")
+KB_PATH = resource_path("data/knowledge.xlsx")
 
 
 
@@ -186,9 +197,8 @@ from volc_tts_client import tts_synthesize, tts_synthesize_and_play, play_wav, v
 
 
 # ============================================================
-# 4) ASR 识别一次（已切换到科大讯飞）
+# 4) 唤醒词检测
 # ============================================================
-# recognize_once 函数已从 xfyun_asr 模块导入
 
 
 def is_wakeup(text: str) -> bool:
@@ -227,7 +237,7 @@ def answer_question(user_text: str) -> str:
 
 
 # ============================================================
-# 6) GUI
+# 6) ChatGUI 主类 (界面 + 语音逻辑)
 # ============================================================
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -261,6 +271,7 @@ class ChatGUI(ctk.CTk):
         stop_playback()
         self.destroy()
 
+    # ------ 6.1 界面构建 ------
     def _build_ui(self):
         # 顶部标题区
         top = ctk.CTkFrame(self, height=80, corner_radius=0)
@@ -328,6 +339,7 @@ class ChatGUI(ctk.CTk):
         send_btn.pack(side="left", padx=(0, 10))
 
     # -------------------- GUI Chat helpers --------------------
+    # ------ 6.2 消息显示 ------
     def append_chat(self, role, text):
         self.chat_box.configure(state="normal")
         self.chat_box.insert("end", f"{role}：{text}\n\n")
@@ -338,6 +350,7 @@ class ChatGUI(ctk.CTk):
         self.status_label.configure(text=text)
 
     # -------------------- Text send --------------------
+    # ------ 6.3 文本发送 ------
     def on_send(self):
         user_text = self.input_var.get().strip()
         if not user_text:
@@ -355,6 +368,7 @@ class ChatGUI(ctk.CTk):
 
     # -------------------- Voice toggle --------------------
     # -------------------- Voice toggle --------------------
+    # ------ 6.4 语音开关控制 ------
     def toggle_voice(self):
         if not self.voice_running:
             self.voice_running = True
@@ -380,7 +394,7 @@ class ChatGUI(ctk.CTk):
             # 立即播放关闭提示音
             def play_off_sound():
                 try:
-                    play_wav("voice_off.mp3")
+                    play_wav("audio/voice_off.mp3")
                 except Exception:
                     pass
             threading.Thread(target=play_off_sound, daemon=True).start()
@@ -401,6 +415,7 @@ class ChatGUI(ctk.CTk):
     def _should_continue(self, run_id):
         return self.voice_running and getattr(self, 'voice_run_id', 0) == run_id
 
+    # ------ 6.5 语音循环核心逻辑 ------
     async def _voice_loop_async(self, run_id):
         """
         持久连接模式的语音循环
@@ -424,7 +439,7 @@ class ChatGUI(ctk.CTk):
         
         # 播放欢迎语（阻塞，避免自录音）
         try:
-            await asyncio.to_thread(play_wav, "voice_on.mp3")
+            await asyncio.to_thread(play_wav, "audio/voice_on.mp3")
         except Exception:
             pass
         
@@ -499,7 +514,7 @@ class ChatGUI(ctk.CTk):
                         self.gui_queue.put(("wake_ok", None))
                         try:
                             recorder.pause()
-                            play_wav("awake.mp3")
+                            play_wav("audio/awake.mp3")
                             recorder.resume()
                         except Exception:
                             recorder.resume()
@@ -513,7 +528,7 @@ class ChatGUI(ctk.CTk):
                 # 退出检测
                 if any(x in text for x in ["退出", "再见", "谢谢"]):
                     try:
-                        threading.Thread(target=play_wav, args=("bye.mp3",), daemon=True).start()
+                        threading.Thread(target=play_wav, args=("audio/bye.mp3",), daemon=True).start()
                     except Exception:
                         pass
                     self.voice_running = False
@@ -567,6 +582,7 @@ class ChatGUI(ctk.CTk):
             logger.info("[语音循环] 持久连接已断开")
 
     # -------------------- Queue polling --------------------
+    # ------ 6.6 GUI消息队列处理 ------
     def _start_polling_queue(self):
         self.after(100, self._poll_queue)
 

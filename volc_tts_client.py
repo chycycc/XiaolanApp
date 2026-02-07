@@ -1,6 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-火山引擎 TTS WebSocket 客户端
+火山引擎 TTS 语音合成客户端
+
+功能:
+    - HTTP方式调用火山TTS API
+    - 支持流式播放 (边下载边播放)
+    - 支持长文本智能分句
+    - 支持停止播放控制
+    - 连接池优化网络性能
+
+核心函数:
+    - play_long_text(): 播放长文本语音
+    - tts_synthesize(): 合成并保存为MP3文件
+    - stop_playback(): 停止当前播放
+    - close_client(): 关闭HTTP客户端
+
+API文档: https://www.volcengine.com/docs/6561/79823
+
+Author: XiaolanApp Team
 """
 
 import asyncio

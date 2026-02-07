@@ -5,15 +5,14 @@
 """
 
 import asyncio
-import asyncio
 from volc_tts_client import tts_synthesize
 
 # 固定语音提示列表
 FIXED_PROMPTS = {
-    "voice_on.mp3": "语音问答已开启，请说你好小蓝唤醒我。",
-    "voice_off.mp3": "语音问答已关闭。",
-    "awake.mp3": "我在的，请问有什么可以帮您？",
-    "bye.mp3": "好的，我会继续等待您的呼唤。",
+    "audio/voice_on.mp3": "语音问答已开启，请说你好小蓝唤醒我。",
+    "audio/voice_off.mp3": "语音问答已关闭。",
+    "audio/awake.mp3": "我在的，请问有什么可以帮您？",
+    "audio/bye.mp3": "好的，我会继续等待您的呼唤。",
 }
 
 

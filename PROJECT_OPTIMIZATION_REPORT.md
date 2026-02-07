@@ -219,3 +219,89 @@
     -   当前为单轮问答，无记忆。
     -   可增加 3-5 轮历史消息，提升连贯性。
 
+---
+
+## 9. (新增) 2026-02-06 代码结构优化
+
+### 📁 项目结构整理
+
+```
+XiaolanApp/
+├── 📁 audio/                   # 音频资源 (新建)
+│   ├── awake.mp3              # 唤醒提示音
+│   ├── bye.mp3                # 休眠提示音
+│   ├── voice_on.mp3           # 语音开启提示
+│   └── voice_off.mp3          # 语音关闭提示
+├── 📁 data/                    # 数据资源 (新建)
+│   └── knowledge.xlsx         # 知识库 (1264条Q&A)
+├── 📁 hooks/                   # PyInstaller 钩子
+├── 📁 ffmpeg/                  # 内置 FFmpeg
+├── GUI.py                     # 图形界面版 (文本+语音)
+├── Play.py                    # 纯语音版
+├── config.py                  # 统一配置文件
+├── audio_recorder.py          # 麦克风录音+VAD (重命名)
+├── xfyun_rtasr.py             # 讯飞实时语音转写
+├── volc_tts_client.py         # 火山TTS语音合成
+├── generate_prompts.py        # 提示音生成工具
+├── robot.ico                  # 应用图标
+└── 小蓝助手.spec              # PyInstaller 打包配置
+```
+
+### 🗑️ 代码清理
+
+| 删除项 | 行数 | 原因 |
+|:---|:---|:---|
+| `edge_tts_client.py` | 84 | 已切换到火山TTS |
+| `xfyun_asr.py` | 366 | 已切换到RTASR |
+| `test_asr.py` | 44 | 依赖被删除模块 |
+| `protocols/` 目录 | 586 | 废弃的火山ASR协议 |
+| `audio_recorder.py` 废弃代码 | 632 | 仅保留AudioRecorder类 |
+| `reply.mp3` | - | 废弃的临时文件 |
+
+**总计删除**: ~1700 行无用代码
+
+### 📦 结构整理
+
+| 操作 | 说明 |
+|:---|:---|
+| 创建 `audio/` 目录 | 音频资源统一管理 |
+| 创建 `data/` 目录 | 数据文件统一管理 |
+| 重命名 `realtime_asr2.py` → `audio_recorder.py` | 更准确的命名 |
+| 添加文件顶部注释 | GUI.py, Play.py, config.py, volc_tts_client.py |
+
+### 📝 导入清理
+
+**GUI.py / Play.py 各删除 7 行无用导入**:
+- `json`, `uuid`, `wave`, `sounddevice as sd`, `websockets`
+- `from xfyun_asr import ...`
+- `from protocols import ...`
+
+### 📄 .gitignore 更新
+
+新增忽略规则: `run.log`, `*.log`, `build/`, `dist/`, `.venv/`, `__pycache__/`
+
+### 📝 代码注释优化
+
+**修复过时注释**:
+- `# 4) ASR 识别一次` → `# 4) 唤醒词检测` (GUI.py / Play.py)
+- 删除 `recognize_once 函数已从 xfyun_asr 模块导入` (已不存在)
+- 合并重复的 `# 1) 豆包大模型` 注释 (GUI.py)
+
+**添加模块导入注释**:
+```python
+# 语音模块
+# 麦克风录音 + VAD
+from audio_recorder import AudioRecorder                        
+# 讯飞实时语音转写
+from xfyun_rtasr import rtasr_client, start_persistent_asr, ...
+```
+
+**添加类内分区注释** (GUI.py / Play.py):
+```
+# 6) ChatGUI/VoiceGUI 主类 (界面 + 语音逻辑)
+    # ------ 6.1 界面构建 ------
+    # ------ 6.2 消息显示 ------
+    # ------ 6.3 文本发送 / 语音开关控制 ------
+    # ------ 6.4 语音循环核心逻辑 ------
+    # ------ 6.5/6.6 GUI消息队列处理 ------
+```

@@ -1,5 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+小蓝助手 - 纯语音版 (无文本输入界面)
+
+功能:
+    - 语音问答: 支持语音唤醒(你好小蓝)和语音对话
+    - 聊天历史显示: 在界面上显示对话记录
+    - 知识库匹配: 基于 TF-IDF 的问答匹配
+    - LLM 对话: 调用大模型进行智能对话
+    - TTS 语音播报: 将回答转换为语音播放
+
+特点:
+    - 界面更简洁, 适合纯语音交互场景
+    - 无文本输入框, 完全依赖语音
+
+依赖模块:
+    - audio_recorder: 麦克风录音和VAD
+    - xfyun_rtasr: 讯飞实时语音转写
+    - volc_tts_client: 火山引擎TTS语音合成
+    - config: 统一配置管理
+
+Author: XiaolanApp Team
+"""
 
 def resource_path(relative_path: str) -> str:
     """兼容 PyInstaller 打包后的资源路径"""
@@ -12,10 +34,7 @@ def resource_path(relative_path: str) -> str:
 
 import os
 import sys
-import json
-import uuid
 import time
-import wave
 import queue
 import threading
 import asyncio
@@ -32,16 +51,12 @@ except ImportError:
     SKLEARN_AVAILABLE = False
     import difflib
 
-import sounddevice as sd
-import websockets
 import customtkinter as ctk
 from pypinyin import lazy_pinyin
 from volcenginesdkarkruntime import Ark
 
-from realtime_asr2 import AudioRecorder
-from xfyun_asr import recognize_once, recognize_stream
+from audio_recorder import AudioRecorder
 from xfyun_rtasr import rtasr_client, start_persistent_asr, stop_persistent_asr, send_audio_chunk
-from protocols import MsgType, full_client_request, receive_message
 
 
 # ---------------------------
@@ -78,7 +93,7 @@ def chat_with_ark(messages):
 # ============================================================
 # 2) 知识库（knowledge.xlsx）
 # ============================================================
-KB_PATH = resource_path("knowledge.xlsx")
+KB_PATH = resource_path("data/knowledge.xlsx")
 
 
 
@@ -182,9 +197,8 @@ from volc_tts_client import tts_synthesize, tts_synthesize_and_play, play_wav, v
 
 
 # ============================================================
-# 4) ASR 识别一次（已切换到科大讯飞）
+# 4) 唤醒词检测
 # ============================================================
-# recognize_once 函数已从 xfyun_asr 模块导入
 
 
 def is_wakeup(text: str) -> bool:
@@ -223,7 +237,7 @@ def answer_question(user_text: str) -> str:
 
 
 # ============================================================
-# 6) GUI (纯语音极简版)
+# 6) VoiceGUI 主类 (界面 + 语音逻辑)
 # ============================================================
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -253,6 +267,7 @@ class VoiceGUI(ctk.CTk):
         stop_playback()
         self.destroy()
 
+    # ------ 6.1 界面构建 ------
     def _build_ui(self):
         # 顶部标题区
         top = ctk.CTkFrame(self, height=80, corner_radius=0)
@@ -313,6 +328,7 @@ class VoiceGUI(ctk.CTk):
         self.append_chat("系统", "已就绪。点击下方按钮开始语音对话...", "yellow")
 
 
+    # ------ 6.2 消息显示 ------
     def append_chat(self, role, text, color=None):
         self.chat_box.configure(state="normal")
         
@@ -334,7 +350,7 @@ class VoiceGUI(ctk.CTk):
         self.chat_box.see("end")
         self.chat_box.configure(state="disabled")
 
-    # -------------------- Voice toggle --------------------
+    # ------ 6.3 语音开关控制 ------
     def toggle_voice(self):
         if not self.voice_running:
             self.voice_running = True
@@ -360,7 +376,7 @@ class VoiceGUI(ctk.CTk):
             # 立即播放关闭提示音
             def play_off_sound():
                 try:
-                    play_wav("voice_off.mp3")
+                    play_wav("audio/voice_off.mp3")
                 except Exception:
                     pass
             threading.Thread(target=play_off_sound, daemon=True).start()
@@ -377,6 +393,7 @@ class VoiceGUI(ctk.CTk):
     def _should_continue(self, run_id):
         return self.voice_running and getattr(self, 'voice_run_id', 0) == run_id
 
+    # ------ 6.4 语音循环核心逻辑 ------
     async def _voice_loop_async(self, run_id):
         """
         持久连接模式的语音循环
@@ -389,7 +406,7 @@ class VoiceGUI(ctk.CTk):
                 await recognized_sentences.put(text)
         
         try:
-            threading.Thread(target=play_wav, args=("voice_on.mp3",), daemon=True).start()
+            threading.Thread(target=play_wav, args=("audio/voice_on.mp3",), daemon=True).start()
         except Exception:
             pass
         
@@ -449,7 +466,7 @@ class VoiceGUI(ctk.CTk):
                         self.gui_queue.put(("wake_ok", None))
                         try:
                             recorder.pause()
-                            play_wav("awake.mp3")
+                            play_wav("audio/awake.mp3")
                             recorder.resume()
                         except Exception:
                             recorder.resume()
@@ -462,7 +479,7 @@ class VoiceGUI(ctk.CTk):
                 
                 if any(x in text for x in ["退出", "再见", "谢谢"]):
                     try:
-                        threading.Thread(target=play_wav, args=("bye.mp3",), daemon=True).start()
+                        threading.Thread(target=play_wav, args=("audio/bye.mp3",), daemon=True).start()
                     except Exception:
                         pass
                     self.voice_running = False
@@ -504,7 +521,7 @@ class VoiceGUI(ctk.CTk):
 
             await stop_persistent_asr()
 
-    # -------------------- Queue polling --------------------
+    # ------ 6.5 GUI消息队列处理 ------
     def _start_polling_queue(self):
         self.after(100, self._poll_queue)
 

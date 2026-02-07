@@ -1,6 +1,19 @@
 # -*- coding: utf-8 -*-
 """
 小蓝助手 - 统一配置文件
+
+包含配置:
+    - 科大讯飞语音识别 (XFYUN_ASR, XFYUN_RTASR, XFYUN_RTASR_BIGMODEL)
+    - 大模型服务 (doubao, deepseek, qwen, glm)
+    - 火山引擎TTS (VOLCANO_TTS)
+    - 知识库文件路径
+    - 语音唤醒关键词
+
+使用方法:
+    修改此文件来切换不同的服务提供商或API密钥
+    例如: LLM_PROVIDER = "deepseek" 切换到DeepSeek大模型
+
+Author: XiaolanApp Team
 """
 
 # ========== 科大讯飞语音识别配置 ==========
